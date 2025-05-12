@@ -1,0 +1,10 @@
+{
+  "database": {
+    "host": "mysql-3f905b0b-tournify.l.aivencloud.com",
+    "port": 13573,
+    "user": "avnadmin",
+    "password": "AVNS_5DVHSmE2a0kj2364qRr",
+    "database": "defaultdb",
+    "ssl-mode": "REQUIRED"
+  }
+}
