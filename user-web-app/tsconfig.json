@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+      "target": "es5",
+      "lib": ["dom", "dom.iterable", "esnext"],
+      "allowJs": true,  // Allows mixing .js and .ts files
+      "skipLibCheck": true,
+      "strict": false,  // Start with loose checks, enable later
+      "esModuleInterop": true,
+      "module": "esnext",
+      "moduleResolution": "node",
+      "resolveJsonModule": true,
+      "jsx": "preserve",  // Required for React
+      "noEmit": true,     // Since React uses Babel/Webpack for transpilation
+      "incremental": true,
+      "baseUrl": "./src", // Helps with absolute imports
+    },
+    "include": ["src"],   // Only checks files in /src
+    "exclude": ["node_modules"]
+  }

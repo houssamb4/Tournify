@@ -1,0 +1,80 @@
+/* Modern styles for Tournify */
+.container {
+  @apply mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-800;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-600 rounded-full hover:bg-gray-500 transition-colors duration-300;
+}
+
+/* Card hover effects */
+.card-hover {
+  @apply transition-all duration-300 hover:scale-105 hover:shadow-xl;
+}
+
+/* Button styles
+.btn-primary {
+  @apply gradient-button;
+}
+ */
+.btn-secondary {
+  @apply bg-transparent border border-blue-500 text-blue-500 
+         hover:bg-blue-500 hover:text-white transition-all duration-300;
+}
+
+/* Text styles 
+.text-gradient {
+  @apply gradient-text;
+}
+*/
+/* Section styles */
+.section {
+  @apply py-16 sm:py-20;
+}
+
+.section-dark {
+  @apply bg-gray-900;
+}
+
+.section-light {
+  @apply bg-gray-800;
+}
+
+/* Form styles */
+.form-input {
+  @apply w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg 
+         text-white focus:outline-none focus:ring-2 focus:ring-blue-500;
+}
+
+/* Animation classes 
+.fade-in {
+  @apply animate-fade-in;
+}*/
+
+a{
+  color: #ffffff;
+  text-decoration: none;
+}
+
+button{
+  color: #ffffff;
+}
+/* Responsive utilities */
+@media (max-width: 640px) {
+  .container {
+    @apply px-4;
+  }
+  
+  .section {
+    @apply py-12;
+  }
+}
