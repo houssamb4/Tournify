@@ -25,6 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.Football.Tournament.entities.Players;
 import com.Football.Tournament.entities.Teams;
 import com.Football.Tournament.entities.Tournament;
+import com.Football.Tournament.entities.Game;
+import com.Football.Tournament.repository.GameRepository;
 import com.Football.Tournament.response.ResponseHandler;
 import com.Football.Tournament.services.PlayerService;
 import com.Football.Tournament.services.TeamService;
@@ -49,6 +51,9 @@ public class TournamentController {
     
     @Autowired
     private PlayerService playerService;
+    
+    @Autowired
+    private GameRepository gameRepository;
 
     // -------------------------------------------------
     // TOURNAMENT METHODS
@@ -123,6 +128,14 @@ public class TournamentController {
             if (tournament.getTeams() == null) {
                 tournament.setTeams(new HashSet<>());
             }
+            
+            // Handle game relationship if game_id is provided
+            if (tournament.getGame() != null && tournament.getGame().getId() != null) {
+                Long gameId = tournament.getGame().getId();
+                Game game = gameRepository.findById(gameId)
+                    .orElseThrow(() -> new RuntimeException("Game not found with id: " + gameId));
+                tournament.setGame(game);
+            }
 
             Tournament created = tournamentService.createTournament(tournament);
             return ResponseHandler.generateResponse(HttpStatus.CREATED, "Tournament created successfully!", created);
@@ -167,6 +180,14 @@ public class TournamentController {
             @PathVariable String id, 
             @RequestBody Tournament tournament) {
         try {
+            // Handle game relationship if game_id is provided
+            if (tournament.getGame() != null && tournament.getGame().getId() != null) {
+                Long gameId = tournament.getGame().getId();
+                Game game = gameRepository.findById(gameId)
+                    .orElseThrow(() -> new RuntimeException("Game not found with id: " + gameId));
+                tournament.setGame(game);
+            }
+            
             Tournament updated = tournamentService.updateTournament(Long.parseLong(id), tournament);
             return ResponseHandler.generateResponse(HttpStatus.OK, "Successfully updated!", updated);
         } catch (Exception e) {
@@ -179,7 +200,7 @@ public class TournamentController {
     public ResponseEntity<Object> deleteTournament(@PathVariable String id) {
         try {
             tournamentService.deleteTournament(Long.parseLong(id));
-            return ResponseHandler.generateResponse(HttpStatus.OK, "Successfully deleted!", null);
+            return ResponseHandler.generateResponse(HttpStatus.NO_CONTENT, "Successfully deleted!", null);
         } catch (Exception e) {
             return ResponseHandler.generateResponse(HttpStatus.MULTI_STATUS, e.getMessage(), null);
         }

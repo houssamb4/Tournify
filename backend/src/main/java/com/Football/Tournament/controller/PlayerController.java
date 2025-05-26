@@ -158,7 +158,7 @@ public class PlayerController {
     public ResponseEntity<Object> deletePlayer(@PathVariable Long id) {
         try {
             playerService.deletePlayer(id);
-            return ResponseHandler.generateResponse(HttpStatus.OK, "Player deleted successfully!", null);
+            return ResponseHandler.generateResponse(HttpStatus.NO_CONTENT, "Player deleted successfully!", null);
         } catch (Exception e) {
             return ResponseHandler.generateResponse(HttpStatus.BAD_REQUEST, e.getMessage(), null);
         }

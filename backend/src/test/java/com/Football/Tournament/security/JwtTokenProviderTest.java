@@ -1,106 +1,90 @@
 package com.Football.Tournament.security;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
-
-import java.util.Collections;
-
+import io.jsonwebtoken.ExpiredJwtException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.util.ReflectionTestUtils;
 
-import com.Football.Tournament.entities.User;
+import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Test class for JWT token provider
- * Tests token generation and validation for user authentication
- */
-@SpringBootTest
-@ActiveProfiles("test")
+@ExtendWith(MockitoExtension.class)
 public class JwtTokenProviderTest {
 
-    @Autowired
+    @InjectMocks
     private JwtTokenProvider tokenProvider;
-    
+
     @Mock
-    private CustomUserDetailsService userDetailsService;
-    
+    private Authentication authentication;
+
+    @Mock
     private UserPrincipal userPrincipal;
-    private User testUser;
-    
+
     @BeforeEach
-    public void setup() {
-        // Setup test user
-        testUser = new User();
-        testUser.setId(1L);
-        testUser.setUsername("testuser");
-        testUser.setEmail("test@example.com");
-        testUser.setRole("ROLE_USER");
-        
-        // Setup UserPrincipal based on test user
-        userPrincipal = UserPrincipal.create(testUser);
-        
-        // Configure mock behavior
-        when(userDetailsService.loadUserById(1L)).thenReturn(userPrincipal);
+    void setUp() {
+        ReflectionTestUtils.setField(tokenProvider, "jwtSecret", "testSecretKey123456789testSecretKey123456789");
+        ReflectionTestUtils.setField(tokenProvider, "jwtExpirationInMs", 3600000);
     }
-    
+
     @Test
-    public void testGenerateToken() {
-        // Create authentication object
-        Authentication authentication = new UsernamePasswordAuthenticationToken(
-            userPrincipal,
-            null,
-            Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
-        );
-        
-        // Generate token
+    void generateToken_Success() {
+        // Arrange
+        when(authentication.getPrincipal()).thenReturn(userPrincipal);
+        when(userPrincipal.getId()).thenReturn(1L);
+        when(userPrincipal.getUsername()).thenReturn("testuser");
+
+        // Act
         String token = tokenProvider.generateToken(authentication);
-        
-        // Verify token is not null or empty
-        assertNotNull(token, "Token should not be null");
-        assertFalse(token.isEmpty(), "Token should not be empty");
+
+        // Assert
+        assertNotNull(token);
+        assertTrue(token.length() > 0);
+        assertTrue(tokenProvider.validateToken(token));
     }
-    
+
     @Test
-    public void testGetUserIdFromJWT() {
-        // Create authentication object and generate token
-        Authentication authentication = new UsernamePasswordAuthenticationToken(
-            userPrincipal,
-            null,
-            Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
-        );
-        
+    void getUserIdFromJWT_Success() {
+        // Arrange
+        when(authentication.getPrincipal()).thenReturn(userPrincipal);
+        when(userPrincipal.getId()).thenReturn(1L);
+        when(userPrincipal.getUsername()).thenReturn("testuser");
         String token = tokenProvider.generateToken(authentication);
-        
-        // Get user ID from token
+
+        // Act
         Long userId = tokenProvider.getUserIdFromJWT(token);
-        
-        // Verify user ID matches
-        assertEquals(testUser.getId(), userId, "User ID from token should match test user ID");
+
+        // Assert
+        assertEquals(1L, userId);
     }
-    
+
     @Test
-    public void testValidateToken() {
-        // Create authentication object and generate token
-        Authentication authentication = new UsernamePasswordAuthenticationToken(
-            userPrincipal,
-            null,
-            Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
-        );
-        
-        String token = tokenProvider.generateToken(authentication);
-        
-        // Validate token
-        boolean isValid = tokenProvider.validateToken(token);
-        
-        // Verify token is valid
-        assertTrue(isValid, "Token should be valid");
+    void validateToken_InvalidToken_ReturnsFalse() {
+        // Act & Assert
+        assertFalse(tokenProvider.validateToken("invalid.token.here"));
     }
-}
+
+    @Test
+    void validateToken_ExpiredToken_ReturnsFalse() {
+        // Arrange
+        when(authentication.getPrincipal()).thenReturn(userPrincipal);
+        when(userPrincipal.getId()).thenReturn(1L);
+        when(userPrincipal.getUsername()).thenReturn("testuser");
+        
+        ReflectionTestUtils.setField(tokenProvider, "jwtExpirationInMs", -3600000); // Set expiration to past
+        String token = tokenProvider.generateToken(authentication);
+
+        // Act & Assert
+        assertFalse(tokenProvider.validateToken(token));
+    }
+
+    @Test
+    void validateToken_NullToken_ReturnsFalse() {
+        // Act & Assert
+        assertFalse(tokenProvider.validateToken(null));
+    }
+} 

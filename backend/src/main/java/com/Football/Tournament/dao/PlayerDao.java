@@ -35,4 +35,12 @@ void deleteByTeam_id(@Param("teamId") long teamId);
 // Find the maximum ID in the players table
 @Query("SELECT MAX(p.id) FROM Players p")
 Long findMaxId();
+
+// Find players by game ID through the relationship chain: Game -> Tournament -> Teams -> Players
+@Query("SELECT DISTINCT p FROM Players p JOIN p.team t JOIN t.tournaments tour WHERE tour.game.id = :gameId")
+List<Players> findByGameId(@Param("gameId") Long gameId);
+
+// Find players by game ID with pagination
+@Query("SELECT DISTINCT p FROM Players p JOIN p.team t JOIN t.tournaments tour WHERE tour.game.id = :gameId")
+Page<Players> findByGameId(@Param("gameId") Long gameId, Pageable pageable);
 }

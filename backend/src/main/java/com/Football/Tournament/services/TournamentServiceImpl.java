@@ -2,6 +2,7 @@ package com.Football.Tournament.services;
 
 import java.util.Date;
 import java.util.HashSet;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +30,10 @@ public class TournamentServiceImpl implements TournamentService {
     @Override
     public Tournament createTournament(Tournament tournament) {
         try {
+            if (tournament.getName() == null || tournament.getName().trim().isEmpty()) {
+                throw new IllegalArgumentException("Tournament name is required");
+            }
+
             // Additional validation
             if (tournament.getName() != null) {
                 // Check if tournament with same name exists
@@ -57,7 +62,7 @@ public class TournamentServiceImpl implements TournamentService {
 
             return tournamentDao.save(tournament);
         } catch (Exception e) {
-            throw new RuntimeException("Error creating tournament: " + e.getMessage(), e);
+            throw new RuntimeException("Failed to create tournament: " + e.getMessage(), e);
         }
     }
 
@@ -75,6 +80,8 @@ public class TournamentServiceImpl implements TournamentService {
         existingTournament.setLogoUrl(tournament.getLogoUrl());
         existingTournament.setStartDate(tournament.getStartDate());
         existingTournament.setEndDate(tournament.getEndDate());
+        existingTournament.setGame(tournament.getGame());
+        existingTournament.setUpdated_at(new Date());
         return tournamentDao.save(existingTournament);
     }
 
@@ -82,20 +89,15 @@ public class TournamentServiceImpl implements TournamentService {
     public void deleteTournament(long id) {
         try {
             Tournament tournament = findATournament(id);
-            
-            // First, remove all team associations
-            System.out.println("Removing all team associations for tournament with ID: " + id);
-            tournament.getTeams().clear();
-            tournamentDao.save(tournament);
-            
-            // Then delete the tournament
-            System.out.println("Deleting tournament with ID: " + id);
             tournamentDao.delete(tournament);
         } catch (Exception e) {
-            System.err.println("Error deleting tournament: " + e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException("Could not delete tournament: " + e.getMessage(), e);
+            throw new RuntimeException("Failed to delete tournament: " + e.getMessage(), e);
         }
+    }
+
+    @Override
+    public void deleteAllTournaments() {
+        tournamentDao.deleteAll();
     }
 
     @Override
@@ -104,7 +106,8 @@ public class TournamentServiceImpl implements TournamentService {
         Teams team = teamDao.findById(teamId).orElseThrow(
             () -> new RuntimeException("Team not found with id: " + teamId)
         );
-        tournament.getTeams().add(team);
+        
+        tournament.addTeam(team);
         return tournamentDao.save(tournament);
     }
 
@@ -114,13 +117,21 @@ public class TournamentServiceImpl implements TournamentService {
         Teams team = teamDao.findById(teamId).orElseThrow(
             () -> new RuntimeException("Team not found with id: " + teamId)
         );
-        tournament.getTeams().remove(team);
+        
+        tournament.removeTeam(team);
         tournamentDao.save(tournament);
     }
 
     @Override
     public Page<Teams> listTeamsInTournament(long tournamentId, Pageable pageRequest) {
         return teamDao.findByTournamentsId(tournamentId, pageRequest);
+    }
+
+    @Override
+    public void deleteAllTeamsInTournament(long tournamentId) {
+        Tournament tournament = findATournament(tournamentId);
+        tournament.getTeams().clear();
+        tournamentDao.save(tournament);
     }
 
     @Override
@@ -132,17 +143,5 @@ public class TournamentServiceImpl implements TournamentService {
     public Page<Tournament> findActiveTournaments(Date currentDate, Pageable pageRequest) {
         return tournamentDao.findByStartDateLessThanEqualAndEndDateGreaterThanEqual(
             currentDate, currentDate, pageRequest);
-    }
-
-    @Override
-    public void deleteAllTournaments() {
-        tournamentDao.deleteAll();
-    }
-
-    @Override
-    public void deleteAllTeamsInTournament(long tournamentId) {
-        Tournament tournament = findATournament(tournamentId);
-        tournament.getTeams().clear();
-        tournamentDao.save(tournament);
     }
 }

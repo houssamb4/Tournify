@@ -31,7 +31,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     public UserDetails loadUserById(Long id) {
         User user = userDao.findById(id)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("User", "id", id)
+                        new UsernameNotFoundException("User not found with id : " + id)
                 );
 
         return UserPrincipal.create(user);

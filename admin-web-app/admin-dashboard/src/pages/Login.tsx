@@ -1,15 +1,34 @@
-import { useState } from 'react'
+import { useState, useContext, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useContext } from 'react'
 import { AuthContext } from '../context/AuthContext'
 
 function AdminLogin() {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const { login } = useContext(AuthContext)
-  const navigate = useNavigate()
+  const { login, currentUser, error: authError, loading: authLoading } = useContext(AuthContext)
+  
+  // Use authLoading from context to synchronize loading states
+  useEffect(() => {
+    // Update local loading state based on auth context loading
+    setIsLoading(authLoading)
+  }, [authLoading])
+  
+  useEffect(() => {
+    // Redirect if already logged in
+    if (currentUser) {
+      navigate('/dashboard')
+    }
+  }, [currentUser, navigate])
+  
+  useEffect(() => {
+    // Update local error state if auth context error exists
+    if (authError) {
+      setError(authError)
+    }
+  }, [authError])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -19,20 +38,35 @@ function AdminLogin() {
       return
     }
 
-    // Basic email validation for admin access
-    if (!email.endsWith('@admin.com')) {
-      setError('Only admin emails are allowed')
-      return
-    }
-
     setIsLoading(true)
     setError('')
 
     try {
       await login(email, password)
-      navigate('/admin/dashboard')
-    } catch (err) {
-      setError('Invalid credentials. Please try again.')
+      
+      // Make sure token is properly set in localStorage
+      const token = localStorage.getItem('authToken')
+      if (!token) {
+        throw new Error('Authentication succeeded but no token was received.')
+      }
+      
+      // Import and call setAuthToken directly to ensure it's set right away
+      const { setAuthToken } = await import('../services/api')
+      setAuthToken(token)
+      
+      // Navigate to dashboard
+      navigate('/dashboard')
+    } catch (err: any) {
+      console.error('Login error:', err)
+      if (err.response?.status === 401) {
+        setError('Invalid credentials. Please check your email and password.')
+      } else if (err.response?.status === 403) {
+        setError('You do not have permission to access the admin dashboard.')
+      } else if (err.response) {
+        setError(err.response.data?.message || 'Login failed. Please try again.')
+      } else {
+        setError(err.message || 'Network error. Please check your connection.')
+      }
     } finally {
       setIsLoading(false)
     }

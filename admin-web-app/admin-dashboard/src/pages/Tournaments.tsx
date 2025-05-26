@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as echarts from 'echarts';
-import { useRef } from 'react';
+import { tournamentService } from '../services/api';
+import { AuthContext } from '../context/AuthContext';
 
 const Tournaments = () => {
+  const { currentUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -13,21 +15,55 @@ const Tournaments = () => {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
 
-  // Mock data for tournaments
+  // Fetch real tournament data from API
   useEffect(() => {
-    const mockTournaments = Array.from({ length: 25 }, (_, i) => ({
-      id: `T${1000 + i}`,
-      name: `Tournament ${i + 1}`,
-      game: ['Valorant', 'League of Legends', 'CS:GO', 'Dota 2', 'Fortnite'][Math.floor(Math.random() * 5)],
-      status: ['upcoming', 'ongoing', 'completed'][Math.floor(Math.random() * 3)],
-      startDate: new Date(Date.now() + Math.random() * 30 * 24 * 60 * 60 * 1000),
-      endDate: new Date(Date.now() + Math.random() * 60 * 24 * 60 * 60 * 1000),
-      participants: Math.floor(Math.random() * 500),
-      prizePool: Math.floor(Math.random() * 100000),
-      organizer: `Organizer ${Math.floor(Math.random() * 10) + 1}`
-    }));
-    setTournaments(mockTournaments);
-  }, []);
+    const fetchTournaments = async () => {
+      try {
+        const response = await tournamentService.getTournaments(currentPage - 1, tournamentsPerPage);
+        
+        if (response.data && Array.isArray(response.data.content)) {
+          const tournamentsData = response.data.content;
+          
+          // Transform the data to match our expected format
+          const formattedTournaments = tournamentsData.map((tournament: any) => ({
+            id: tournament.id || Math.random().toString(),
+            name: tournament.name || 'Unnamed Tournament',
+            game: tournament.game?.name || 'Unknown Game',
+            status: tournament.startDate && tournament.endDate ? 
+                    getStatus(tournament.startDate, tournament.endDate) : 'upcoming',
+            startDate: tournament.startDate ? new Date(tournament.startDate) : new Date(),
+            endDate: tournament.endDate ? new Date(tournament.endDate) : new Date(),
+            participants: tournament.teams?.length || 0,
+            prizePool: tournament.prizePool || 0,
+            location: tournament.location || 'Online',
+            logoUrl: tournament.logoUrl || '',
+            description: tournament.description || ''
+          }));
+          
+          setTournaments(formattedTournaments);
+        } else {
+          console.error('Invalid API response format:', response);
+          setTournaments([]);
+        }
+      } catch (error) {
+        console.error('Error fetching tournaments:', error);
+        setTournaments([]);
+      }
+    };
+    
+    fetchTournaments();
+  }, [currentPage, tournamentsPerPage]);
+  
+  // Helper function to determine tournament status
+  const getStatus = (startDate: string, endDate: string): 'upcoming' | 'ongoing' | 'completed' => {
+    const now = new Date();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    if (now < start) return 'upcoming';
+    if (now > end) return 'completed';
+    return 'ongoing';
+  };
 
   // Initialize chart
   useEffect(() => {
@@ -128,6 +164,72 @@ const Tournaments = () => {
     navigate(`/tournaments/view/${id}`);
   };
 
+  // Add state for error/success messages
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this tournament?')) {
+      return;
+    }
+    
+    // Clear previous messages
+    setActionError(null);
+    setActionSuccess(null);
+    
+    try {
+      // Check if user has the token in localStorage
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        setActionError('You need to be logged in to perform this action.');
+        return;
+      }
+      
+      await tournamentService.deleteTournament(Number(id));
+      
+      // Update UI
+      const updatedTournaments = tournaments.filter(tournament => tournament.id !== id);
+      setTournaments(updatedTournaments);
+      
+      // Show success message
+      setActionSuccess('Tournament deleted successfully!');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setActionSuccess(null);
+      }, 3000);
+    } catch (error: any) {
+      console.error('Error deleting tournament:', error);
+      
+      // Handle different error scenarios
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        if (error.response.status === 401 || error.response.status === 403) {
+          setActionError('You do not have permission to delete this tournament.');
+        } else if (error.response.status === 404) {
+          setActionError('Tournament not found. It may have already been deleted.');
+          // Refresh tournaments list
+          const updatedTournaments = tournaments.filter(tournament => tournament.id !== id);
+          setTournaments(updatedTournaments);
+        } else {
+          setActionError(error.response.data?.message || 'Failed to delete tournament. Please try again.');
+        }
+      } else if (error.request) {
+        // The request was made but no response was received
+        setActionError('Network error. Please check your connection and try again.');
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        setActionError('An unexpected error occurred. Please try again.');
+      }
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setActionError(null);
+      }, 5000);
+    }
+  };
+
   return (
     <div className="p-6">
       {/* Header and Filters */}
@@ -146,7 +248,10 @@ const Tournaments = () => {
             <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
           </div>
           
-          <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm flex items-center justify-center whitespace-nowrap">
+          <button 
+            onClick={() => navigate('/tournaments/create')} 
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm flex items-center justify-center whitespace-nowrap"
+          >
             <i className="fas fa-plus mr-2"></i>
             Create Tournament
           </button>
@@ -208,6 +313,19 @@ const Tournaments = () => {
         </div>
       </div>
 
+      {/* Error and Success Messages */}
+      {actionError && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+          <p>{actionError}</p>
+        </div>
+      )}
+      
+      {actionSuccess && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
+          <p>{actionSuccess}</p>
+        </div>
+      )}
+      
       {/* Tournaments Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
@@ -279,9 +397,15 @@ const Tournaments = () => {
                     </button>
                     <button 
                       onClick={() => handleEdit(tournament.id)}
-                      className="text-gray-600 hover:text-gray-900"
+                      className="text-gray-600 hover:text-gray-900 mr-3"
                     >
                       Edit
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(tournament.id)}
+                      className="text-red-600 hover:text-red-900"
+                    >
+                      Delete
                     </button>
                   </td>
                 </tr>

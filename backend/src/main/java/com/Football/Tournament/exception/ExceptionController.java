@@ -18,7 +18,7 @@ public class ExceptionController {
 			.collect(Collectors.joining(", "));
 			
 		String message = String.format(
-			"Method '%s' is not supported for this endpoint. Supported methods are: %s",
+			"Method '%s' is not supported. Supported methods are: [%s]",
 			e.getMethod(),
 			supportedMethods
 		);

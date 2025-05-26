@@ -1,41 +1,176 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as echarts from 'echarts';
+import axios from 'axios';
+import { AuthContext } from '../context/AuthContext';
+
+
+// Base URL for API calls
+// Note: The base URL should not include '/home' as it's already included in the endpoint paths
+const baseUrl = 'http://localhost:8080';
+
+interface Team {
+  id: number;
+  name: string;
+  tag?: string; // Optional fields based on actual API response
+  game?: string;
+  status?: 'active' | 'inactive' | 'disbanded';
+  creationDate?: string;
+  members?: number;
+  tournamentsJoined?: number;
+  tournamentsWon?: number;
+  captain?: string;
+  winRate?: number;
+  logo?: string;
+  location?: string;
+  created_at?: number;
+  updated_at?: number;
+  players?: any[];
+  logoUrl?: string; // API seems to use logoUrl instead of logo
+}
+
 
 const Teams = () => {
+  const { currentUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [teamsPerPage] = useState(8);
   const [activeTab, setActiveTab] = useState('all');
-  const [teams, setTeams] = useState<any[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [totalPages, setTotalPages] = useState(0);
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
 
-  // Mock data for teams
   useEffect(() => {
-    const games = ['Valorant', 'League of Legends', 'CS:GO', 'Dota 2', 'Fortnite', 'Rocket League'];
-    const mockTeams = Array.from({ length: 24 }, (_, i) => ({
-      id: `TM${1000 + i}`,
-      name: `Team ${i + 1}`,
-      tag: `T${String.fromCharCode(65 + Math.floor(i / 5))}${i % 5 + 1}`,
-      game: games[Math.floor(Math.random() * games.length)],
-      status: ['active', 'inactive', 'disbanded'][Math.floor(Math.random() * 3)],
-      creationDate: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000),
-      members: Math.floor(Math.random() * 10) + 1,
-      tournamentsJoined: Math.floor(Math.random() * 15),
-      tournamentsWon: Math.floor(Math.random() * 5),
-      captain: `Player${Math.floor(Math.random() * 50) + 1}`,
-      winRate: Math.floor(Math.random() * 100),
-      logo: `https://picsum.photos/seed/team${i}/100/100`
-    }));
-    setTeams(mockTeams);
-  }, []);
+    const fetchTeams = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        if (currentUser) {
+          // Get auth token from localStorage
+          const token = localStorage.getItem('authToken');
+          
+          let url = `${baseUrl}/home/listTeams?page=${currentPage - 1}&size=${teamsPerPage}`;
+          
+          if (activeTab !== 'all') {
+            url += `&status=${activeTab}`;
+          }
+
+          console.log('Fetching teams from URL:', url);
+          
+          const response = await axios.get(url, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          console.log('Teams API response:', response.data);
+          
+          // Check for all possible response formats
+          // This is the actual structure from your backend:
+          // { data: { content: [...teams] }, error: "OK", message: "..." }
+          if (response.data && response.data.data && Array.isArray(response.data.data.content)) {
+            // The real API format - nested under data.data.content
+            console.log('Processing correct API format with nested data envelope');
+            setTeams(response.data.data.content);
+            setTotalPages(response.data.data.totalPages || 1);
+            setError(null);
+          } else if (response.data && Array.isArray(response.data.content)) {
+            // Standard Spring pagination format
+            console.log('Processing paginated response with content array');
+            setTeams(response.data.content);
+            setTotalPages(response.data.totalPages);
+            setError(null);
+          } else if (Array.isArray(response.data)) {
+            // Direct array format
+            console.log('Processing direct array response');
+            setTeams(response.data);
+            setTotalPages(Math.ceil(response.data.length / teamsPerPage));
+            setError(null);
+          } else if (response.data && response.data.teams && Array.isArray(response.data.teams)) {
+            // Nested teams property format
+            console.log('Processing nested teams array response');
+            setTeams(response.data.teams);
+            setTotalPages(Math.ceil(response.data.teams.length / teamsPerPage));
+            setError(null);
+          } else if (response.data && typeof response.data === 'object') {
+            // Try to adapt any object format by extracting team-like objects
+            console.log('Attempting to adapt unknown object format');
+            try {
+              // If it's a single team object
+              if (response.data.id && response.data.name) {
+                setTeams([response.data as Team]);
+                setTotalPages(1);
+                setError(null);
+              } else {
+                // Log the actual structure for debugging
+                console.error('Unexpected data structure:', JSON.stringify(response.data, null, 2));
+                setTeams([]);
+                setError(`Unexpected data format: ${JSON.stringify(response.data).substring(0, 100)}...`);
+              }
+            } catch (err) {
+              console.error('Error parsing response:', err);
+              setTeams([]);
+              setError('Error parsing response data');
+            }
+          } else {
+            console.error('Completely unexpected response format:', response.data);
+            setTeams([]);
+            setError('Unexpected data format received from server');
+          }
+        }
+      } catch (error: any) {
+        console.error('Error fetching teams:', error);
+        setError(error.response?.data?.message || 'Failed to fetch teams');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchTeams();
+  }, [currentPage, teamsPerPage, currentUser]);
+
+  // Filter teams based on search and active tab
+  const filteredTeams = teams.filter(team => {
+    const matchesSearch = 
+      team.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (team.tag?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (team.game?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+    
+    if (activeTab === 'all') {
+      return matchesSearch;
+    } else if (['active', 'inactive', 'disbanded'].includes(activeTab)) {
+      return matchesSearch && team.status === activeTab;
+    } else {
+      return matchesSearch && (team.game?.toLowerCase() || '').includes(activeTab.replace('-', ' '));
+    }
+  });
+
+  // Pagination logic
+  const indexOfLastTeam = currentPage * teamsPerPage;
+  const indexOfFirstTeam = indexOfLastTeam - teamsPerPage;
+  const currentTeams = filteredTeams.slice(indexOfFirstTeam, indexOfLastTeam);
 
   // Initialize chart
   useEffect(() => {
-    if (chartRef.current) {
+    if (chartRef.current && teams.length > 0) {
       chartInstance.current = echarts.init(chartRef.current);
+      
+      // Count teams by game
+      const gameCount: Record<string, number> = {};
+      teams.forEach(team => {
+        const game = team.game || 'Unknown';
+        gameCount[game] = (gameCount[game] || 0) + 1;
+      });
+      
+      const topGames = Object.entries(gameCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+      
       const option = {
         tooltip: {
           trigger: 'item'
@@ -72,17 +207,14 @@ const Teams = () => {
             labelLine: {
               show: false
             },
-            data: [
-              { value: teams.filter(t => t.game === 'Valorant').length, name: 'Valorant', itemStyle: { color: '#FF4655' } },
-              { value: teams.filter(t => t.game === 'League of Legends').length, name: 'League of Legends', itemStyle: { color: '#0BC6E3' } },
-              { value: teams.filter(t => t.game === 'CS:GO').length, name: 'CS:GO', itemStyle: { color: '#F5B225' } },
-              { value: teams.filter(t => t.game === 'Dota 2').length, name: 'Dota 2', itemStyle: { color: '#E83151' } },
-              { value: teams.filter(t => t.game === 'Fortnite').length, name: 'Fortnite', itemStyle: { color: '#5CC6F2' } },
-              { value: teams.filter(t => t.game === 'Rocket League').length, name: 'Rocket League', itemStyle: { color: '#B37EFC' } }
-            ]
+            data: topGames.map(([game, count]) => ({
+              value: count,
+              name: game
+            }))
           }
         ]
       };
+      
       chartInstance.current.setOption(option);
     }
 
@@ -100,22 +232,6 @@ const Teams = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Filter teams based on search and active tab
-  const filteredTeams = teams.filter(team => {
-    const matchesSearch = 
-      team.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      team.tag.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      team.game.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = activeTab === 'all' || team.status === activeTab;
-    return matchesSearch && matchesStatus;
-  });
-
-  // Pagination logic
-  const indexOfLastTeam = currentPage * teamsPerPage;
-  const indexOfFirstTeam = indexOfLastTeam - teamsPerPage;
-  const currentTeams = filteredTeams.slice(indexOfFirstTeam, indexOfLastTeam);
-  const totalPages = Math.ceil(filteredTeams.length / teamsPerPage);
-
   const handleEdit = (id: string) => {
     navigate(`/teams/edit/${id}`);
   };
@@ -124,26 +240,44 @@ const Teams = () => {
     navigate(`/teams/view/${id}`);
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | undefined) => {
     switch (status) {
       case 'active': return 'bg-green-100 text-green-800';
-      case 'inactive': return 'bg-yellow-100 text-yellow-800';
+      case 'inactive': return 'bg-gray-100 text-gray-800';
       case 'disbanded': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      default: return 'bg-green-100 text-green-800'; // Default to active
     }
   };
 
-  const getWinRateColor = (rate: number) => {
-    if (rate >= 70) return 'text-green-600';
-    if (rate >= 40) return 'text-yellow-600';
-    return 'text-red-600';
+  // Helper function to get team logo URL
+  const getTeamLogoUrl = (team: Team) => {
+    if (team.logo) return team.logo;
+    if (team.logoUrl) return team.logoUrl;
+    return 'https://via.placeholder.com/50';
   };
 
+  const getWinRateColor = (rate: number | undefined) => {
+    if (!rate) return 'text-gray-600';
+    if (rate >= 70) return 'text-green-600';
+    if (rate >= 50) return 'text-blue-600';
+    if (rate >= 30) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+  
   return (
     <div className="p-6">
       {/* Header and Filters */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
         <h1 className="text-2xl font-bold mb-4 md:mb-0">Team Management</h1>
+        
+        {error && (
+          <div className="w-full mb-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded">
+            <div className="flex items-center">
+              <i className="fas fa-exclamation-circle mr-2"></i>
+              <p>{error}</p>
+            </div>
+          </div>
+        )}
         
         <div className="flex flex-col md:flex-row w-full md:w-auto space-y-2 md:space-y-0 md:space-x-4">
           <div className="relative">
@@ -157,7 +291,10 @@ const Teams = () => {
             <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
           </div>
           
-          <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm flex items-center justify-center whitespace-nowrap">
+          <button
+            onClick={() => navigate('/teams/add')}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm flex items-center justify-center whitespace-nowrap transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
             <i className="fas fa-plus mr-2"></i>
             Create Team
           </button>
@@ -192,15 +329,6 @@ const Teams = () => {
             >
               Disbanded
             </button>
-            {['Valorant', 'League of Legends', 'CS:GO', 'Dota 2'].map(game => (
-              <button
-                key={game}
-                onClick={() => setActiveTab(game.toLowerCase().replace(' ', '-'))}
-                className={`py-4 px-6 text-center border-b-2 font-medium text-sm whitespace-nowrap ${activeTab === game.toLowerCase().replace(' ', '-') ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-              >
-                {game}
-              </button>
-            ))}
           </nav>
         </div>
         
@@ -229,68 +357,72 @@ const Teams = () => {
       </div>
 
       {/* Teams Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-        {currentTeams.map(team => (
-          <div key={team.id} className="bg-white rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow">
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center">
-                  <img 
-                    src={team.logo} 
-                    alt={`${team.name} logo`} 
-                    className="w-12 h-12 rounded-full object-cover border-2 border-indigo-100"
-                  />
-                  <div className="ml-3">
-                    <h3 className="font-bold">{team.name}</h3>
-                    <span className="text-xs text-gray-500">[{team.tag}]</span>
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="p-6">
+          {loading ? (
+            <div className="text-center py-8">
+              <i className="fas fa-spinner fa-spin text-2xl text-gray-400 mb-2"></i>
+              <p className="text-gray-500">Loading teams...</p>
+            </div>
+          ) : currentTeams.length === 0 ? (
+            <div className="text-center py-8">
+              <i className="fas fa-users text-4xl text-gray-400 mb-4"></i>
+              <p className="text-gray-500">No teams found</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {currentTeams.map((team: Team) => (
+                <div key={team.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between mb-3">
+                    <img 
+                      src={getTeamLogoUrl(team)} 
+                      alt={`${team.name} logo`} 
+                      className="w-12 h-12 rounded-full object-cover border-2 border-indigo-100"
+                    />
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(team.status || 'active')}`}>
+                      {team.status ? team.status.charAt(0).toUpperCase() + team.status.slice(1) : 'Active'}
+                    </span>
+                  </div>
+                  
+                  <h3 className="font-bold text-lg mb-1">{team.name}</h3>
+                  <span className="text-sm text-gray-500">[{team.tag}]</span>
+                  
+                  <div className="mt-3 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Game:</span>
+                      <span className="font-medium">{team.game}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Members:</span>
+                      <span className="font-medium">{team.members}/10</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Win Rate:</span>
+                      <span className={`font-medium ${getWinRateColor(team.winRate)}`}>
+                        {team.winRate}%
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 flex space-x-2">
+                    <button 
+                      onClick={() => handleView(team.id.toString())}
+                      className="flex-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 py-2 rounded text-sm font-medium"
+                    >
+                      View
+                    </button>
+                    <button 
+                      onClick={() => handleEdit(team.id.toString())}
+                      className="flex-1 bg-gray-50 text-gray-600 hover:bg-gray-100 py-2 rounded text-sm font-medium"
+                    >
+                      Edit
+                    </button>
                   </div>
                 </div>
-                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(team.status)}`}>
-                  {team.status.charAt(0).toUpperCase() + team.status.slice(1)}
-                </span>
-              </div>
-              
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-gray-500">Game:</span>
-                <span className="font-medium">{team.game}</span>
-              </div>
-              
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-gray-500">Members:</span>
-                <span className="font-medium">{team.members}/10</span>
-              </div>
-              
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-gray-500">Tournaments:</span>
-                <span className="font-medium">
-                  {team.tournamentsJoined} <span className="text-green-500">({team.tournamentsWon} won)</span>
-                </span>
-              </div>
-              
-              <div className="flex items-center justify-between text-sm mb-4">
-                <span className="text-gray-500">Win Rate:</span>
-                <span className={`font-medium ${getWinRateColor(team.winRate)}`}>
-                  {team.winRate}%
-                </span>
-              </div>
-              
-              <div className="flex justify-between space-x-2">
-                <button 
-                  onClick={() => handleView(team.id)}
-                  className="flex-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 py-2 rounded text-sm font-medium"
-                >
-                  View
-                </button>
-                <button 
-                  onClick={() => handleEdit(team.id)}
-                  className="flex-1 bg-gray-50 text-gray-600 hover:bg-gray-100 py-2 rounded text-sm font-medium"
-                >
-                  Edit
-                </button>
-              </div>
+              ))}
             </div>
-          </div>
-        ))}
+          )}
+        </div>
       </div>
 
       {/* Pagination */}
@@ -361,43 +493,6 @@ const Teams = () => {
         </div>
       )}
 
-      {/* Top Performing Teams */}
-      <div className="mt-8 bg-white rounded-lg shadow overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold">Top Performing Teams</h2>
-        </div>
-        <div className="divide-y divide-gray-200">
-          {teams
-            .sort((a, b) => b.winRate - a.winRate)
-            .slice(0, 5)
-            .map((team, index) => (
-              <div key={team.id} className="p-4 hover:bg-gray-50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <span className="text-gray-400 font-medium w-6">{index + 1}</span>
-                    <img 
-                      src={team.logo} 
-                      alt={`${team.name} logo`} 
-                      className="w-10 h-10 rounded-full object-cover mx-3"
-                    />
-                    <div>
-                      <h4 className="font-medium">{team.name}</h4>
-                      <p className="text-xs text-gray-500">{team.game}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className={`font-bold ${getWinRateColor(team.winRate)}`}>
-                      {team.winRate}% Win Rate
-                    </span>
-                    <p className="text-xs text-gray-500">
-                      {team.tournamentsWon} tournament wins
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-        </div>
-      </div>
     </div>
   );
 };

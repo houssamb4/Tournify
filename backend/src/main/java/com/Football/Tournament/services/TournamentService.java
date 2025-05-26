@@ -17,14 +17,15 @@ public interface TournamentService {
     public Tournament findATournament(long id);
     public Tournament updateTournament(long id, Tournament tournament);
     public void deleteTournament(long id);
+    public void deleteAllTournaments();
     
+    // Team-Tournament relationship methods
     public Tournament addTeamToTournament(long tournamentId, long teamId);
     public void removeTeamFromTournament(long tournamentId, long teamId);
     public Page<Teams> listTeamsInTournament(long tournamentId, Pageable pageRequest);
+    public void deleteAllTeamsInTournament(long tournamentId);
     
+    // Search and filter methods
     public Page<Tournament> findByNameContaining(String name, Pageable pageRequest);
     public Page<Tournament> findActiveTournaments(Date currentDate, Pageable pageRequest);
-    
-    public void deleteAllTournaments();
-    public void deleteAllTeamsInTournament(long tournamentId);
 }

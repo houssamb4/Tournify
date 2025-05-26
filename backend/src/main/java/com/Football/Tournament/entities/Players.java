@@ -55,7 +55,6 @@ public class Players {
 
 	public Players() {
 		super();
-		
 	}
 
 	public long getId() {
@@ -113,7 +112,13 @@ public class Players {
 	}
 
 	public void setTeam(Teams team) {
+		if (this.team != null) {
+			this.team.getPlayers().remove(this);
+		}
 		this.team = team;
+		if (team != null) {
+			team.getPlayers().add(this);
+		}
 	}
 
 	public long getTeam_id() {
@@ -136,7 +141,7 @@ public class Players {
 		this.profileUrl = profileUrl;
 		this.created_at = created_at;
 		this.updated_at = updated_at;
-		this.team = team;
+		setTeam(team);
 	}
 
 	@Override
@@ -147,7 +152,7 @@ public class Players {
 				", age=" + age +
 				", profileUrl='" + profileUrl + '\'' +
 				", team_id=" + team_id +
-				'}';
+				"}";
 	}
 
 }

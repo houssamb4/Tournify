@@ -5,8 +5,12 @@ import com.Football.Tournament.dto.JwtAuthResponse;
 import com.Football.Tournament.dto.UserDto;
 import com.Football.Tournament.dto.LoginRequest;
 import com.Football.Tournament.dto.SignUpRequest;
+import com.Football.Tournament.dto.ForgotPasswordRequest;
+import com.Football.Tournament.dto.ForgotPasswordResponse;
+import com.Football.Tournament.dto.VerifyResetCodeRequest;
+import com.Football.Tournament.dto.ResetPasswordRequest;
 import com.Football.Tournament.entities.User;
-import com.Football.Tournament.entities.UserStats;
+import com.Football.Tournament.entities.PasswordResetToken;
 import com.Football.Tournament.security.JwtTokenProvider;
 import com.Football.Tournament.security.UserPrincipal;
 import com.Football.Tournament.services.UserService;
@@ -28,11 +32,24 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.UUID;
+import java.util.Random;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
+
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, Object>> healthCheck() {
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "UP");
+        response.put("timestamp", LocalDateTime.now().toString());
+        response.put("message", "API server is running");
+        return ResponseEntity.ok(response);
+    }
 
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
     
@@ -227,7 +244,29 @@ public class AuthController {
                     if (userDto.getAddress() != null) {
                         user.setAddress(userDto.getAddress());
                     }
-                    // Email and username typically require additional validation if changing
+                    
+                    // Update email and username if provided
+                    if (userDto.getEmail() != null && !userDto.getEmail().isEmpty()) {
+                        // Check if email is already in use by another user
+                        if (!user.getEmail().equals(userDto.getEmail()) && 
+                            userService.existsByEmail(userDto.getEmail())) {
+                            logger.warn("Cannot update email: {} is already in use", userDto.getEmail());
+                            return ResponseEntity.badRequest()
+                                .body(new ApiResponse(false, "Email is already in use"));
+                        }
+                        user.setEmail(userDto.getEmail());
+                    }
+                    
+                    if (userDto.getUsername() != null && !userDto.getUsername().isEmpty()) {
+                        // Check if username is already in use by another user
+                        if (!user.getUsername().equals(userDto.getUsername()) && 
+                            userService.existsByUsername(userDto.getUsername())) {
+                            logger.warn("Cannot update username: {} is already in use", userDto.getUsername());
+                            return ResponseEntity.badRequest()
+                                .body(new ApiResponse(false, "Username is already in use"));
+                        }
+                        user.setUsername(userDto.getUsername());
+                    }
                     
                     user.setUpdatedAt(LocalDateTime.now());
                     
@@ -278,5 +317,123 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponse(false, "Logout failed: " + e.getMessage()));
         }
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        logger.info("=== FORGOT PASSWORD REQUEST STARTED ===");
+        logger.debug("Processing forgot password request for email: {}", request.getEmail());
+
+        try {
+            // Step 1: Generate and send a 6-character verification code
+            PasswordResetToken token = userService.createPasswordResetTokenForEmail(request.getEmail());
+            
+            if (token == null) {
+                // For security, don't disclose whether the email exists or not
+                logger.warn("Email not found but returning generic response: {}", request.getEmail());
+                return ResponseEntity.ok(new ForgotPasswordResponse(
+                    true,
+                    "If your email address is registered, you will receive a verification code."
+                ));
+            }
+            
+            logger.info("Verification code sent to email: {}", request.getEmail());
+            logger.info("=== FORGOT PASSWORD REQUEST COMPLETED SUCCESSFULLY ===");
+            
+            return ResponseEntity.ok(new ForgotPasswordResponse(
+                true,
+                "A 6-digit verification code has been sent to your email.",
+                request.getEmail(),
+                true
+            ));
+        } catch (Exception e) {
+            logger.error("Forgot password process failed for email: {}", request.getEmail(), e);
+            logger.debug("Error details: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse(false, "Forgot password process failed: " + e.getMessage()));
+        }
+    }
+    
+    @PostMapping("/verify-reset-code")
+    public ResponseEntity<ApiResponse> verifyResetCode(@Valid @RequestBody VerifyResetCodeRequest request) {
+        logger.info("=== VERIFY RESET CODE REQUEST STARTED ===");
+        logger.debug("Verifying code for email: {}", request.getEmail());
+        
+        try {
+            boolean isValid = userService.verifyPasswordResetCode(request.getEmail(), request.getCode());
+            
+            if (!isValid) {
+                logger.warn("Invalid or expired verification code for email: {}", request.getEmail());
+                return ResponseEntity.badRequest().body(
+                    new ApiResponse(false, "Invalid or expired verification code. Please try again.")
+                );
+            }
+            
+            logger.info("=== VERIFY RESET CODE COMPLETED SUCCESSFULLY ===");
+            return ResponseEntity.ok(new ApiResponse(
+                true, 
+                "Verification successful. You can now reset your password."
+            ));
+        } catch (Exception e) {
+            logger.error("Verification failed for email: {}", request.getEmail(), e);
+            logger.debug("Error details: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse(false, "Verification failed: " + e.getMessage()));
+        }
+    }
+    
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        logger.info("=== RESET PASSWORD REQUEST STARTED ===");
+        logger.debug("Processing password reset for email: {}", request.getEmail());
+        
+        try {
+            // Check if passwords match
+            if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+                logger.warn("Passwords do not match for email: {}", request.getEmail());
+                return ResponseEntity.badRequest().body(
+                    new ApiResponse(false, "Passwords do not match. Please try again.")
+                );
+            }
+            
+            // Reset the password using the verification code
+            boolean isSuccess = userService.resetPassword(
+                request.getEmail(), 
+                request.getCode(), 
+                request.getNewPassword()
+            );
+            
+            if (!isSuccess) {
+                logger.warn("Password reset failed for email: {}", request.getEmail());
+                return ResponseEntity.badRequest().body(
+                    new ApiResponse(false, "Failed to reset password. Verification code may be invalid or expired.")
+                );
+            }
+            
+            logger.info("=== RESET PASSWORD COMPLETED SUCCESSFULLY ===");
+            return ResponseEntity.ok(new ApiResponse(
+                true, 
+                "Password has been reset successfully. You can now login with your new password."
+            ));
+        } catch (Exception e) {
+            logger.error("Password reset failed for email: {}", request.getEmail(), e);
+            logger.debug("Error details: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse(false, "Password reset failed: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Generate a random password with specified length
+     */
+    private String generateRandomPassword(int length) {
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()";
+        StringBuilder sb = new StringBuilder();
+        Random random = new Random();
+        for (int i = 0; i < length; i++) {
+            int index = random.nextInt(chars.length());
+            sb.append(chars.charAt(index));
+        }
+        return sb.toString();
     }
 }

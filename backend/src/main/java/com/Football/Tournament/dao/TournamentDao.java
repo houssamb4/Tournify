@@ -1,6 +1,7 @@
 package com.Football.Tournament.dao;
 
 import java.util.Date;
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,4 +24,10 @@ public interface TournamentDao extends JpaRepository<Tournament, Long> {
     Page<Tournament> findByEndDateBefore(Date date, Pageable pageable);
     
     Tournament findByLogoUrl(String logoUrl);
+    
+    // Find tournaments by game id
+    Page<Tournament> findByGameId(Long gameId, Pageable pageable);
+    
+    // Find all tournaments by game id without pagination
+    List<Tournament> findByGameId(Long gameId);
 }

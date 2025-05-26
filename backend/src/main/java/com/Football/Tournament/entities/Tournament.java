@@ -6,12 +6,14 @@ import java.util.Set;
 import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.JoinTable;
 import javax.persistence.ManyToMany;
+import javax.persistence.ManyToOne;
 import javax.persistence.PrePersist;
 import javax.persistence.PreUpdate;
 import javax.persistence.Table;
@@ -56,9 +58,13 @@ public class Tournament {
     @JoinTable(
         name = "tournament_teams",
         joinColumns = @JoinColumn(name = "tournament_id"),
-        inverseJoinColumns = @JoinColumn(name = "teams_id")
+        inverseJoinColumns = @JoinColumn(name = "team_id")
     )
     private Set<Teams> teams = new HashSet<>();
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "game_id")
+    private Game game;
     
     @PrePersist
     private void onCreate() {
@@ -77,7 +83,7 @@ public class Tournament {
     }
     
     public Tournament(long id, String name, String logoUrl, Date startDate, Date endDate, 
-                     Date created_at, Date updated_at) {
+                     Date created_at, Date updated_at, Game game) {
         super();
         this.id = id;
         this.name = name;
@@ -86,6 +92,7 @@ public class Tournament {
         this.endDate = endDate;
         this.created_at = created_at;
         this.updated_at = updated_at;
+        this.game = game;
     }
     
     public long getId() {
@@ -161,5 +168,13 @@ public class Tournament {
     public void removeTeam(Teams team) {
         this.teams.remove(team);
         team.getTournaments().remove(this);
+    }
+    
+    public Game getGame() {
+        return game;
+    }
+    
+    public void setGame(Game game) {
+        this.game = game;
     }
 }
