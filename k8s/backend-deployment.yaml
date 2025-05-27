@@ -1,0 +1,125 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: tournify
+data:
+  application.properties: |
+    server.port=8080
+    spring.datasource.url=jdbc:mysql://mysql-service:3306/footballtournament
+    spring.datasource.username=tournify
+    spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+    spring.jpa.hibernate.ddl-auto=update
+    spring.jpa.show-sql=false
+    spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect
+    logging.level.com.Football.Tournament=INFO
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backend-secret
+  namespace: tournify
+type: Opaque
+data:
+  db-password: dG91cm5pZnkxMjM=  # base64 encoded 'tournify123'
+  jwt-secret: bXlfc3VwZXJfc2VjcmV0X2p3dF9rZXlfZm9yX3Rva2VuX2dlbmVyYXRpb24=  # base64 encoded JWT secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: tournify
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: tournify/backend:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: backend-secret
+              key: db-password
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: backend-secret
+              key: jwt-secret
+        - name: SPRING_PROFILES_ACTIVE
+          value: "prod"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        readinessProbe:
+          httpGet:
+            path: /api/auth/health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /api/auth/health
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 30
+      volumes:
+      - name: config-volume
+        configMap:
+          name: backend-config
+      initContainers:
+      - name: wait-for-mysql
+        image: busybox:1.35
+        command: ['sh', '-c', 'until nc -z mysql-service 3306; do echo waiting for mysql; sleep 2; done;']
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: tournify
+spec:
+  selector:
+    app: backend
+  ports:
+  - port: 8080
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-ingress
+  namespace: tournify
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization"
+spec:
+  rules:
+  - host: api.tournify.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backend-service
+            port:
+              number: 8080

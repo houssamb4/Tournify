@@ -1,0 +1,144 @@
+# User Web App Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-web-app
+  namespace: tournify
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-web-app
+  template:
+    metadata:
+      labels:
+        app: user-web-app
+    spec:
+      containers:
+      - name: user-web-app
+        image: tournify/user-web-app:latest
+        ports:
+        - containerPort: 80
+        env:
+        - name: REACT_APP_API_URL
+          value: "http://api.tournify.local"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-web-app-service
+  namespace: tournify
+spec:
+  selector:
+    app: user-web-app
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+# Admin Web App Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-web-app
+  namespace: tournify
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: admin-web-app
+  template:
+    metadata:
+      labels:
+        app: admin-web-app
+    spec:
+      containers:
+      - name: admin-web-app
+        image: tournify/admin-web-app:latest
+        ports:
+        - containerPort: 80
+        env:
+        - name: REACT_APP_API_URL
+          value: "http://api.tournify.local"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-web-app-service
+  namespace: tournify
+spec:
+  selector:
+    app: admin-web-app
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+# Ingress for Frontend Apps
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend-ingress
+  namespace: tournify
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: app.tournify.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: user-web-app-service
+            port:
+              number: 80
+  - host: admin.tournify.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: admin-web-app-service
+            port:
+              number: 80
