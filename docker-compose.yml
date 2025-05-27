@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tournify-backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://houssam-tournify-db.d.aivencloud.com:13360/tournify_db?allowPublicKeyRetrieval=true&useSSL=true&connectTimeout=5000&socketTimeout=30000
+      SPRING_DATASOURCE_USERNAME: avnadmin
+      SPRING_DATASOURCE_PASSWORD: AVNS_pqN4wHV7tk77Urt9D0b
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: true
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.MySQL8Dialect
+      SPRING_MAIL_HOST: smtp.gmail.com
+      SPRING_MAIL_PORT: 587
+      SPRING_MAIL_USERNAME: m59385781@gmail.com
+      SPRING_MAIL_PASSWORD: uske vydr glrz rmts
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: 'true'
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: 'true'
+    networks:
+      - tournify-network
+    volumes:
+      - ./backend/logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/auth/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # User Web App
+  user-web-app:
+    build:
+      context: ./user-web-app
+      dockerfile: Dockerfile
+    container_name: tournify-user-web
+    ports:
+      - "3000:80"
+    environment:
+      REACT_APP_API_URL: http://localhost:8080
+    depends_on:
+      - backend
+    networks:
+      - tournify-network
+
+  # Admin Web App
+  admin-web-app:
+    build:
+      context: ./admin-web-app
+      dockerfile: Dockerfile
+    container_name: tournify-admin-web
+    ports:
+      - "3001:80"
+    environment:
+      REACT_APP_API_URL: http://localhost:8080
+    depends_on:
+      - backend
+    networks:
+      - tournify-network
+
+  # Mobile App Development Server (optional)
+  mobile-app:
+    build:
+      context: ./user-mobile-app
+      dockerfile: Dockerfile.dev
+    container_name: tournify-mobile-dev
+    ports:
+      - "19000:19000"
+      - "19001:19001"
+      - "19002:19002"
+    environment:
+      EXPO_DEVTOOLS_LISTEN_ADDRESS: 0.0.0.0
+      REACT_NATIVE_PACKAGER_HOSTNAME: 0.0.0.0
+    volumes:
+      - ./user-mobile-app:/app
+      - /app/node_modules
+    networks:
+      - tournify-network
+    profiles:
+      - dev
+
+volumes:
+  mysql_data:
+
+networks:
+  tournify-network:
+    driver: bridge
