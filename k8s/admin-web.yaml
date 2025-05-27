@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tournify-admin-web
+  labels:
+    app: tournify-admin-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tournify-admin-web
+  template:
+    metadata:
+      labels:
+        app: tournify-admin-web
+    spec:
+      containers:
+      - name: admin-web
+        image: tournify-admin-web:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tournify-admin-web-service
+spec:
+  selector:
+    app: tournify-admin-web
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: ClusterIP 
