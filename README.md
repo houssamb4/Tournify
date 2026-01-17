@@ -127,3 +127,9 @@ curl -X GET "http://localhost:8080/api/players/by-team/1"
 ## License
 
 Distributed under the MIT License. See LICENSE for more information.
+
+## Contact
+
+Houssam Bouzid - houssambouzid043@gmail.com
+
+Project Link: https://github.com/houssamb4/tournify
