@@ -19,3 +19,7 @@ gradle-app.setting
 .project
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
+
+# Node.js
+node_modules/
+**/node_modules/
