@@ -33,9 +33,9 @@ services:
       retries: 3
 
   # User Web App
-  user-web-app:
+  web-app:
     build:
-      context: ./user-web-app
+      context: ./web-app
       dockerfile: Dockerfile
     container_name: tournify-user-web
     ports:
@@ -48,9 +48,9 @@ services:
       - tournify-network
 
   # Admin Web App
-  admin-web-app:
+  admin-dashboard:
     build:
-      context: ./admin-web-app
+      context: ./admin-dashboard
       dockerfile: Dockerfile
     container_name: tournify-admin-web
     ports:
@@ -65,7 +65,7 @@ services:
   # Mobile App Development Server (optional)
   mobile-app:
     build:
-      context: ./user-mobile-app
+      context: ./mobile-app
       dockerfile: Dockerfile.dev
     container_name: tournify-mobile-dev
     ports:
@@ -76,7 +76,7 @@ services:
       EXPO_DEVTOOLS_LISTEN_ADDRESS: 0.0.0.0
       REACT_NATIVE_PACKAGER_HOSTNAME: 0.0.0.0
     volumes:
-      - ./user-mobile-app:/app
+      - ./mobile-app:/app
       - /app/node_modules
     networks:
       - tournify-network
