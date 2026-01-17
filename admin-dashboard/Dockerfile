@@ -3,13 +3,13 @@ FROM node:18-alpine AS build
 WORKDIR /app
 
 # Copy package files
-COPY admin-dashboard/package*.json ./
+COPY package*.json ./
 
 # Install dependencies
 RUN npm install --legacy-peer-deps
 
 # Copy the rest of the application
-COPY admin-dashboard/ .
+COPY . .
 
 # Build the application
 RUN npm run build

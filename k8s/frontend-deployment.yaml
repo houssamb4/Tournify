@@ -1,22 +1,22 @@
-# User Web App Deployment
+# Web App Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: user-web-app
+  name: web-app
   namespace: tournify
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: user-web-app
+      app: web-app
   template:
     metadata:
       labels:
-        app: user-web-app
+        app: web-app
     spec:
       containers:
-      - name: user-web-app
-        image: tournify/user-web-app:latest
+      - name: web-app
+        image: tournify/web-app:latest
         ports:
         - containerPort: 80
         env:
@@ -45,35 +45,35 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: user-web-app-service
+  name: web-app-service
   namespace: tournify
 spec:
   selector:
-    app: user-web-app
+    app: web-app
   ports:
   - port: 80
     targetPort: 80
   type: ClusterIP
 ---
-# Admin Web App Deployment
+# Admin Dashboard Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: admin-web-app
+  name: admin-dashboard
   namespace: tournify
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: admin-web-app
+      app: admin-dashboard
   template:
     metadata:
       labels:
-        app: admin-web-app
+        app: admin-dashboard
     spec:
       containers:
-      - name: admin-web-app
-        image: tournify/admin-web-app:latest
+      - name: admin-dashboard
+        image: tournify/admin-dashboard:latest
         ports:
         - containerPort: 80
         env:
@@ -102,11 +102,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: admin-web-app-service
+  name: admin-dashboard-service
   namespace: tournify
 spec:
   selector:
-    app: admin-web-app
+    app: admin-dashboard
   ports:
   - port: 80
     targetPort: 80
@@ -129,7 +129,7 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: user-web-app-service
+            name: web-app-service
             port:
               number: 80
   - host: admin.tournify.local
@@ -139,6 +139,6 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: admin-web-app-service
+            name: admin-dashboard-service
             port:
               number: 80
