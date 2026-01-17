@@ -1,7 +1,5 @@
 # Tournify - Football Tournament Management System
 
-![Tournify Logo](https://github.com/houssamb4/Tournify/blob/main/user-web-app/public/logo.jpg) 
-
 Tournify is a comprehensive football tournament management system with admin and user interfaces for managing tournaments, teams, and players.
 
 ## Features
