@@ -1,5 +1,11 @@
 {
   "dependencies": {
     "expo-linear-gradient": "^14.0.2"
+  },
+  "overrides": {
+    "form-data": "^4.0.2",
+    "ip": "^2.0.1",
+    "nth-check": "^2.1.1",
+    "tar": "^6.2.2"
   }
 }
