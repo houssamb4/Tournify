@@ -1,5 +1,5 @@
 {
-  "name": "tournify-admin-dashboard",
+  "name": "admin-dashboard",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -24,7 +24,7 @@
     "react-admin": "^4.16.5",
     "react-dom": "^18.2.0",
     "react-feather": "^2.0.10",
-    "react-router-dom": "^6.24.0"
+    "react-router-dom": "^6.23.1"
   },
   "devDependencies": {
     "@eslint/js": "^8.56.0",

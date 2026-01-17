@@ -1,5 +1,5 @@
 {
-  "name": "tournify-mobile",
+  "name": "user-mobile-app",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
@@ -57,7 +57,7 @@
     "react-native-web": "~0.19.13",
     "react-native-webview": "13.12.5",
     "react-query": "^3.39.3",
-    "react-router-dom": "^7.6.2"
+    "react-router-dom": "^7.6.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
